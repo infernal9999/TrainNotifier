@@ -1441,7 +1441,6 @@
                         if (!response.ok) throw new Error("Train live data not available right now.");
                         const json = await response.json();
 
-                        // ✅ New: handle array response
                         if (!json.success || !Array.isArray(json.data)) {
                             throw new Error("Invalid API response format");
                         }
@@ -1452,13 +1451,18 @@
                             throw new Error(`Train ${trainNo} not found in live data`);
                         }
 
+                        // Optional: log to console for debugging
+                        console.log("Live train data:", trainData);
+
                         app.currentLive = trainData;
+
+                        // Update recent list
                         app.recent = app.recent.filter((i) => i.num !== trainNo);
                         app.recent.unshift({ num: trainNo, name: trainData.train_name });
                         app.recent = app.recent.slice(0, 8);
                         localStorage.setItem(KEY_RECENT, JSON.stringify(app.recent));
 
-                        renderLiveCard(trainData); // pass the single train object
+                        renderLiveCard(trainData);
                         switchTab("live");
                         updateRecentUI();
                         logToConsole(`Live data fetched for ${trainNo}`, "success");
@@ -1474,30 +1478,39 @@
 
                 function renderLiveCard(data) {
                     q("liveView").classList.remove("hidden");
-                    q("liveName").innerText = data.train_name;
-                    q("liveNum").innerText = `# ${data.train_number}`;
-                    q("liveSrc").innerText = data.source;
-                    q("liveDest").innerText = data.destination;
-                    q("liveStatusText").innerText = data.status_message;
+
+                    // Train name and number – these already work
+                    q("liveName").innerText = data.train_name || "Unknown";
+                    q("liveNum").innerText = `# ${data.train_number || "----"}`;
+
+                    // Source = current station, Destination = next station
+                    q("liveSrc").innerText = data.current_station_name || data.current_station || "??";
+                    q("liveDest").innerText = data.next_station_name || data.next_station || "??";
+
+                    // Build a descriptive status message
+                    const depTime = data.departure_minutes !== undefined ? data.departure_minutes : "?";
+                    const day = data.current_day !== undefined ? data.current_day : "?";
+                    const status = `Departed ${data.current_station_name || "station"} ${depTime} min ago • Day ${day}`;
+                    q("liveStatusText").innerText = status;
+
                     q("lastUpdate").innerText = `Updated: ${new Date().toLocaleTimeString()}`;
-                    const total = data.route.length,
-                        passed = data.route.filter((s) => s.has_departed).length;
-                    const pct = (passed / total) * 100;
-                    q("progBar").style.width = pct + "%";
-                    q("trainIconPos").style.left = pct + "%";
-                    q("liveTimeline").innerHTML = data.route
-                        .map(
-                            (stn) => `
-                    <div class="min-w-[140px] snap-center p-5 rounded-3xl border ${stn.has_departed ? "bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800" : "bg-teal-500/10 border-teal-500/30"}">
-                        <p class="text-[9px] font-black text-slate-400 uppercase tracking-tighter">${stn.station_code}</p>
-                        <p class="text-xs font-bold truncate my-2">${stn.station_name}</p>
-                        <div class="flex justify-between items-center">
-                            <span class="text-[10px] font-mono font-bold">${stn.sta || "--:--"}</span>
-                            <div class="w-1.5 h-1.5 rounded-full ${stn.has_departed ? "bg-slate-300" : "bg-teal-500 pulse-live"}"></div>
-                        </div>
-                    </div>`
-                        )
-                        .join("");
+
+                    // Progress bar – estimate using distances (if available)
+                    if (data.curr_distance != null && data.next_distance != null && data.next_distance > 0) {
+                        const progress = (data.curr_distance / data.next_distance) * 100;
+                        q("progBar").style.width = Math.min(progress, 100) + "%";
+                        q("trainIconPos").style.left = Math.min(progress, 100) + "%";
+                    } else {
+                        // If distances missing, set to 0% (or you could hide the bar)
+                        q("progBar").style.width = "0%";
+                        q("trainIconPos").style.left = "0%";
+                    }
+
+                    // The API does not provide a full route list, so show a placeholder
+                    q("liveTimeline").innerHTML =
+                        `<div class="p-5 text-center text-slate-400">Route information not available for this train</div>`;
+
+                    // Refresh Lucide icons (in case any new icons were added)
                     lucide.createIcons();
                 }
 
