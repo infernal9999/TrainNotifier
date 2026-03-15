@@ -1439,13 +1439,26 @@
                         );
                         if (response.status === 429) throw new Error("API usage limit exceeded.");
                         if (!response.ok) throw new Error("Train live data not available right now.");
-                        const data = await response.json();
-                        app.currentLive = data;
+                        const json = await response.json();
+
+                        // ✅ New: handle array response
+                        if (!json.success || !Array.isArray(json.data)) {
+                            throw new Error("Invalid API response format");
+                        }
+
+                        // Find the exact train by number (the API may return multiple)
+                        const trainData = json.data.find((t) => t.train_number === trainNo);
+                        if (!trainData) {
+                            throw new Error(`Train ${trainNo} not found in live data`);
+                        }
+
+                        app.currentLive = trainData;
                         app.recent = app.recent.filter((i) => i.num !== trainNo);
-                        app.recent.unshift({ num: trainNo, name: data.train_name });
+                        app.recent.unshift({ num: trainNo, name: trainData.train_name });
                         app.recent = app.recent.slice(0, 8);
                         localStorage.setItem(KEY_RECENT, JSON.stringify(app.recent));
-                        renderLiveCard(data);
+
+                        renderLiveCard(trainData); // pass the single train object
                         switchTab("live");
                         updateRecentUI();
                         logToConsole(`Live data fetched for ${trainNo}`, "success");
