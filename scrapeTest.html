@@ -3,50 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Proxy Scraper</title>
+    <title>Hidden Iframe Scraper</title>
+    <style>
+        /* [Hide the iframe so the user only sees the final scraped content] */
+        #scraper-frame {
+            display: none; 
+        }
+    </style>
 </head>
 <body>
-    <h2>Scraped Train Status:</h2>
-    <div id="target-container">Fetching data...</div>
+    <h2>Scraped Content Will Appear Below:</h2>
+    <div id="output">Loading data from iframe...</div>
+
+    <iframe id="scraper-frame" src="https://railradar.in/train-status/13106"></iframe>
 
     <script>
-        // The URL you want to scrape
-        const targetUrl = 'https://railradar.in/train-status/13106';
-        
-        // [Pass your target URL through the proxy to bypass browser security]
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+        const iframe = document.getElementById('scraper-frame');
+        const output = document.getElementById('output');
 
-        fetch(proxyUrl)
-            .then(response => {
-                if (response.ok) return response.json();
-                throw new Error('Network response was not ok.');
-            })
-            .then(data => {
-                // The proxy returns the HTML as a string inside data.contents
-                const htmlString = data.contents;
+        // [Wait until the iframe has completely finished loading its content]
+        iframe.onload = function() {
+            try {
+                // Attempt to access the document inside the iframe
+                // THIS IS WHERE THE BROWSER WILL BLOCK CROSS-ORIGIN REQUESTS
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
 
-                // [Convert the raw HTML string into a queryable document object]
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(htmlString, 'text/html');
+                // [Select the specific elements you want to scrape] 
+                // Using 'body' here as a broad example
+                const scrapedContent = iframeDoc.querySelector('body').innerHTML;
 
-                // [Target the specific div or table you want from the source website]
-                // Example: Let's assume you want a specific element, otherwise grab the body
-                const scrapedElement = doc.querySelector('body'); 
+                // Clear the loading message and insert the scraped HTML
+                output.innerHTML = ''; 
+                output.innerHTML = scrapedContent;
 
-                const container = document.getElementById('target-container');
-                container.innerHTML = ''; // Clear loading text
-
-                if (scrapedElement) {
-                    // Inject the scraped HTML directly into your page
-                    container.innerHTML = scrapedElement.innerHTML;
-                } else {
-                    container.innerHTML = 'Could not find the target elements on the page.';
-                }
-            })
-            .catch(error => {
-                console.error('Fetch error:', error);
-                document.getElementById('target-container').innerHTML = 'Failed to fetch data.';
-            });
+            } catch (error) {
+                // [Open your browser console by pressing F12 to see this exact error]
+                output.innerHTML = '<b>Scraping Failed:</b> The browser blocked access due to CORS restrictions.';
+                console.error("CORS Error details:", error);
+            }
+        };
     </script>
 </body>
 </html>
